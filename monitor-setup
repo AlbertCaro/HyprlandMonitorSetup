@@ -2,29 +2,48 @@
 set -euo pipefail
 
 CONF_DIR="$HOME/.config/hypr"
-ACTIVE="$CONF_DIR/monitors.conf"
-ONE="$CONF_DIR/monitors.one.conf"
-TWO="$CONF_DIR/monitors.two.conf"
 
-if [[ ! -f "$ONE" || ! -f "$TWO" ]]; then
-  echo "Error: faltan monitors.one.conf o monitors.two.conf en $CONF_DIR" >&2
-  exit 1
-fi
+# Archivos que se alternan juntos: cada uno tiene .one.conf y .two.conf
+BASES=("monitors" "workspaces")
 
-# Determinar cuál está activo comparando contenido
-current=""
-if diff -q "$ACTIVE" "$ONE" >/dev/null 2>&1; then
-  current="one"
-elif diff -q "$ACTIVE" "$TWO" >/dev/null 2>&1; then
-  current="two"
-fi
+# Determinar qué perfil está activo comparando el archivo principal con los perfiles
+detect_current() {
+  for profile in one two; do
+    all_match=1
+    for base in "${BASES[@]}"; do
+      active="$CONF_DIR/$base.conf"
+      candidate="$CONF_DIR/$base.$profile.conf"
+      if [[ ! -f "$candidate" ]] || ! diff -q "$active" "$candidate" >/dev/null 2>&1; then
+        all_match=0
+        break
+      fi
+    done
+    if [[ "$all_match" -eq 1 ]]; then
+      echo "$profile"
+      return
+    fi
+  done
+  echo ""
+}
 
-# Decidir el siguiente
+# Verificar que existen todos los perfiles
+for base in "${BASES[@]}"; do
+  for profile in one two; do
+    f="$CONF_DIR/$base.$profile.conf"
+    if [[ ! -f "$f" ]]; then
+      echo "Error: falta $base.$profile.conf en $CONF_DIR" >&2
+      exit 1
+    fi
+  done
+done
+
+current="$(detect_current)"
+
+# Decidir el siguiente perfil
 case "${1:-}" in
   --one|1) next="one" ;;
   --two|2) next="two" ;;
   "")
-    # Sin argumento: alterna al otro
     if [[ "$current" == "one" ]]; then
       next="two"
     elif [[ "$current" == "two" ]]; then
@@ -34,22 +53,20 @@ case "${1:-}" in
     fi
     ;;
   *)
-    echo "Uso: switch-monitor [--one|--two|1|2]" >&2
+    echo "Uso: monitor-setup [--one|--two|1|2]" >&2
     exit 1
     ;;
 esac
 
-src=""
-[[ "$next" == "one" ]] && src="$ONE"
-[[ "$next" == "two" ]] && src="$TWO"
+# Aplicar el cambio
+for base in "${BASES[@]}"; do
+  src="$CONF_DIR/$base.$next.conf"
+  dst="$CONF_DIR/$base.conf"
+  cp "$src" "$dst"
+  echo "$base.conf <- $base.$next.conf"
+done
 
-if [[ -z "$src" ]]; then
-  echo "Error interno: perfil desconocido." >&2
-  exit 1
-fi
-
-cp "$src" "$ACTIVE"
-echo "Configuración activa: monitors.$next.conf"
+echo "Setup activo: $next"
 
 # Recargar Hyprland si está corriendo
 if command -v hyprctl >/dev/null 2>&1 && hyprctl monitors >/dev/null 2>&1; then

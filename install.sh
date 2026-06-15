@@ -6,7 +6,7 @@ BIN_DIR="$HOME/.local/bin"
 HYPR_DIR="$HOME/.config/hypr"
 
 SCRIPT_NAME="monitor-setup"
-HYPR_FILES=("monitors.one.conf" "monitors.two.conf")
+HYPR_FILES=("monitors.one.conf" "monitors.two.conf" "workspaces.one.conf" "workspaces.two.conf")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -47,11 +47,13 @@ for f in "${HYPR_FILES[@]}"; do
   fi
 done
 
-# 4. Verificar que monitors.conf existe (lo crea el usuario con nwg-displays)
-if [[ ! -f "$HYPR_DIR/monitors.conf" ]]; then
-  err "No se encontró '$HYPR_DIR/monitors.conf'."
-  err "Genéralo con nwg-displays antes de usar switch-monitor."
-fi
+# 4. Verificar que monitors.conf y workspaces.conf existen (los crea el usuario con nwg-displays)
+for base in monitors workspaces; do
+  if [[ ! -f "$HYPR_DIR/$base.conf" ]]; then
+    err "No se encontró '$HYPR_DIR/$base.conf'."
+    err "Genéralo con nwg-displays antes de usar monitor-setup."
+  fi
+done
 
 # 5. Verificar PATH
 case ":$PATH:" in
