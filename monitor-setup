@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+CONF_DIR="$HOME/.config/hypr"
+ACTIVE="$CONF_DIR/monitors.conf"
+ONE="$CONF_DIR/monitors.one.conf"
+TWO="$CONF_DIR/monitors.two.conf"
+
+if [[ ! -f "$ONE" || ! -f "$TWO" ]]; then
+  echo "Error: faltan monitors.one.conf o monitors.two.conf en $CONF_DIR" >&2
+  exit 1
+fi
+
+# Determinar cuál está activo comparando contenido
+current=""
+if diff -q "$ACTIVE" "$ONE" >/dev/null 2>&1; then
+  current="one"
+elif diff -q "$ACTIVE" "$TWO" >/dev/null 2>&1; then
+  current="two"
+fi
+
+# Decidir el siguiente
+case "${1:-}" in
+  --one|1) next="one" ;;
+  --two|2) next="two" ;;
+  "")
+    # Sin argumento: alterna al otro
+    if [[ "$current" == "one" ]]; then
+      next="two"
+    elif [[ "$current" == "two" ]]; then
+      next="one"
+    else
+      next="one"
+    fi
+    ;;
+  *)
+    echo "Uso: switch-monitor [--one|--two|1|2]" >&2
+    exit 1
+    ;;
+esac
+
+src=""
+[[ "$next" == "one" ]] && src="$ONE"
+[[ "$next" == "two" ]] && src="$TWO"
+
+if [[ -z "$src" ]]; then
+  echo "Error interno: perfil desconocido." >&2
+  exit 1
+fi
+
+cp "$src" "$ACTIVE"
+echo "Configuración activa: monitors.$next.conf"
+
+# Recargar Hyprland si está corriendo
+if command -v hyprctl >/dev/null 2>&1 && hyprctl monitors >/dev/null 2>&1; then
+  hyprctl reload
+  echo "Hyprland recargado."
+else
+  echo "Hyprland no está corriendo; cambios aplicados al guardar."
+fi
